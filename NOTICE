@@ -1,0 +1,5 @@
+OverField Steam local companion and repair additions, 2026.
+Lolo modifications are derived from BanterSR/Lolo under Apache License 2.0.
+Launcher patches target inori-dream/miaomiao-launcher; its upstream terms remain unchanged.
+The root LICENSE applies to the new independent companion and adapter code, and Apache-licensed Lolo modifications. It does not relicense upstream launcher context or game data.
+No game assets, user saves, credentials, or runtime resources are distributed in this source package.

@@ -1,0 +1,728 @@
+diff --git a/game/game.go b/game/game.go
+index af97d8d..da99106 100644
+--- a/game/game.go
++++ b/game/game.go
+@@ -91,6 +91,7 @@ func NewGame(router *gin.Engine) *Game {
+ 		botCache:     cache.New[uint32, BotInterface](0),
+ 	}
+ 	g.newRouter()
++	g.registerLocalSnapshot()
+ 	// 初始化场景配置
+ 	model.ChannelTick = time.Duration(alg.MaxInt(int(model.ChannelTick.Milliseconds()), gdconf.GetConstant().ChannelTick)) * time.Millisecond
+ 	model.OneSTickCount = int64(time.Second / model.ChannelTick)
+diff --git a/game/game_router.go b/game/game_router.go
+index 46a026d..a8f7a3d 100644
+--- a/game/game_router.go
++++ b/game/game_router.go
+@@ -13,6 +13,12 @@ type HandlerFunc func(s *model.Player, msg *alg.GameMsg)
+ func (g *Game) newRouter() {
+ 	g.handlerFuncRouteMap = map[uint32]HandlerFunc{
+ 		// cmd.PlayerLoginReq: g.PlayerLogin 登录第二个包 仅提示用
++		cmd.DailyTaskExchangeReq:    g.DailyTaskExchange,
++		cmd.ChangeWorldLevelReq:     g.ChangeWorldLevel,
++		cmd.UnlockWorldLevelReq:     g.UnlockWorldLevel,
++		cmd.OutfitHideSwitchReq:     g.OutfitHideSwitch,
++		cmd.OutfitDyeUnlockIndexReq: g.OutfitDyeUnlockIndex,
++		cmd.OutfitRandomColorReq:    g.OutfitRandomColor,
+ 		// 基础包
+ 		cmd.PlayerPingReq: g.PlayerPing, // ping
+ 		// 玩家基础信息
+@@ -72,9 +78,9 @@ func (g *Game) newRouter() {
+ 		cmd.CharacterLevelBreakReq:          g.CharacterLevelBreak,          // 角色突破
+ 		cmd.OutfitPresetUpdateReq:           g.OutfitPresetUpdate,           // 保存预设装扮
+ 		cmd.OutfitPresetSwitchReq:           g.OutfitPresetSwitch,           // 切换装扮方案
+-		cmd.OutfitColorantSelectReq:         g.OutfitColorantSelect,         // 染色选择请求
+-		cmd.OutfitDyeReq:                    g.OutfitDye,                    // 染色请求
+-		cmd.OutFitDyeSaveReq:                g.OutFitDyeSave,                // 保存染色结果
++		cmd.OutfitColorantSelectReq:         g.LocalOutfitColorantSelect,    // 染色选择请求
++		cmd.OutfitDyeReq:                    g.LocalOutfitDye,               // 染色请求
++		cmd.OutFitDyeSaveReq:                g.LocalOutfitDyeSave,           // 保存染色结果
+ 		cmd.CharacterEquipUpdateReq:         g.CharacterEquipUpdate,         // 角色更新装备
+ 		cmd.UpdateCharacterAppearanceReq:    g.UpdateCharacterAppearance,    // 更新角色外观
+ 		cmd.CharacterGatherWeaponUpdateReq:  g.CharacterGatherWeaponUpdate,  // 更新手持工具请求
+@@ -132,7 +138,7 @@ func (g *Game) newRouter() {
+ 		cmd.GetPetReq:    g.GetPetReq, // 获取宠物列表
+ 		cmd.ChangePetReq: g.ChangePet, // 宠物携带
+ 		// Gm
+-		cmd.GmCodeReq: g.GmCode, // gm code
++		cmd.GmCodeReq: g.LocalGM, // gm code
+ 
+ 		cmd.PlayerVitalityReq:           g.PlayerVitality,
+ 		cmd.BossRushInfoReq:             g.BossRushInfo,
+diff --git a/game/model/character.go b/game/model/character.go
+index 41004fb..1287464 100644
+--- a/game/model/character.go
++++ b/game/model/character.go
+@@ -121,8 +121,7 @@ func (s *Player) AddCharacter(characterId uint32) *CharacterInfo {
+ 		return nil
+ 	}
+ 	conf := gdconf.GetCharacterAll(characterId)
+-	if conf == nil ||
+-		!conf.CharacterInfo.IsShow {
++	if !LocalCharacterAvailable(characterId) {
+ 		log.Game.Warnf("尝试添加不存在的角色:%v", characterId)
+ 		return nil
+ 	}
+@@ -133,7 +132,6 @@ func (s *Player) AddCharacter(characterId uint32) *CharacterInfo {
+ 	}
+ 	characterInfo := newCharacterInfo(characterId)
+ 	characterInfo.UpMaxLevel()
+-	list[characterId] = characterInfo
+ 	// 初始化装备
+ 	preset := characterInfo.GetEquipmentPreset(characterInfo.InUseEquipmentPresetIndex)
+ 	itemWeapon := s.GetItemModel().AddItemWeapon(uint32(conf.CharacterInfo.DefaultWeaponID))
+@@ -141,6 +139,7 @@ func (s *Player) AddCharacter(characterId uint32) *CharacterInfo {
+ 		log.Game.Warnf("角色:%v,添加默认武器:%v失败", characterId, conf.CharacterInfo.DefaultWeaponID)
+ 		return nil
+ 	}
++	list[characterId] = characterInfo
+ 	itemWeapon.SetWearerId(characterId, preset.PresetIndex)
+ 	preset.WeaponInstanceId = itemWeapon.InstanceId
+ 	// 初始化外观
+@@ -476,6 +475,9 @@ type OutfitHideInfo struct {
+ }
+ 
+ func (o *OutfitHideInfo) OutfitHideInfo() *proto.OutfitHideInfo {
++	if o == nil {
++		return &proto.OutfitHideInfo{}
++	}
+ 	return &proto.OutfitHideInfo{
+ 		HideOrn:   o.HideOrn,
+ 		HideBraid: o.HideBraid,
+diff --git a/game/model/gacha.go b/game/model/gacha.go
+index 4cb5026..843e46b 100644
+--- a/game/model/gacha.go
++++ b/game/model/gacha.go
+@@ -2,6 +2,8 @@ package model
+ 
+ import (
+ 	"errors"
++	"fmt"
++	"gucooing/lolo/protocol/excel"
+ 	"math/rand/v2"
+ 	"time"
+ 
+@@ -123,6 +125,29 @@ func (g *GachaInfo) GachaInfo() *proto.GachaInfo {
+ 	}
+ }
+ 
++// GetPbGachaInfo reports the same shared guarantee counter used by the draw engine.
++// The Steam UI displays this value directly as the remaining number of draws.
++func (g *GachaModel) GetPbGachaInfo(id uint32) *proto.GachaInfo {
++	conf := gdconf.GetGachaData(id)
++	if conf == nil || conf.Conf == nil {
++		return nil
++	}
++	result := g.GetGachaInfo(id).GachaInfo()
++	probability := gdconf.GetGachaProbability(conf.Conf.NewUIGachaType)
++	if probability == nil {
++		return result
++	}
++	kind := proto.EUIGachaType(conf.Conf.NewUIGachaType)
++	if kind == proto.EUIGachaType_EUIGachaType_New || kind == proto.EUIGachaType_EUIGachaType_Default || kind == proto.EUIGachaType_EUIGachaType_Limit {
++		remaining := probability.GuaranteeSSR - g.GetGachaTypeInfo(kind).GuaranteeSSR
++		if remaining < 1 {
++			remaining = 1
++		}
++		result.Guarantee = uint32(remaining)
++	}
++	return result
++}
++
+ type GachaCtx struct {
+ 	player      *Player
+ 	ItemTx      *ItemTransaction
+@@ -144,6 +169,12 @@ func (s *Player) NewGachaCtx(req *proto.GachaReq) (*GachaCtx, error) {
+ 		conf:      gdconf.GetGachaData(req.GachaId),
+ 		gachaInfo: s.GetGachaModel().GetGachaInfo(req.GachaId),
+ 	}
++	if ctx.conf == nil || ctx.conf.Conf == nil {
++		return nil, errors.New("gacha conf is nil")
++	}
++	if !gdconf.IsOpenGachaID(req.GachaId) {
++		return nil, errors.New("gacha pool is not open")
++	}
+ 	if ctx.conf.IsOptional() {
+ 		ctx.conf = gdconf.GetGachaData(ctx.gachaInfo.ChoosePoolId)
+ 	}
+@@ -155,6 +186,22 @@ func (s *Player) NewGachaCtx(req *proto.GachaReq) (*GachaCtx, error) {
+ 		return nil, errors.New("gacha probability is nil")
+ 	}
+ 	ctx.typeInfo = s.GetGachaModel().GetGachaTypeInfo(proto.EUIGachaType(ctx.conf.Conf.NewUIGachaType))
++	// Reject incomplete rewards before consuming currency.
++	pools := make([]*excel.GachaRewardPoolConfigure, 0, len(ctx.conf.Pools)+1)
++	for _, pool := range ctx.conf.Pools {
++		pools = append(pools, pool)
++	}
++	pools = append(pools, ctx.conf.BigPool)
++	for _, pool := range pools {
++		if pool == nil {
++			continue
++		}
++		for _, reward := range pool.Items {
++			if !LocalItemAvailable(uint32(reward.ItemID)) {
++				return nil, fmt.Errorf("gacha reward %d has incomplete client configuration", reward.ItemID)
++			}
++		}
++	}
+ 	// 新建事务
+ 	itemTx, err := s.GetItemModel().Begin()
+ 	if err != nil {
+@@ -203,6 +250,9 @@ func (c *GachaCtx) Run() {
+ 			continue
+ 		}
+ 		itemDetail := itemInfo.AddItemDetail()
++		if itemDetail == nil {
++			continue
++		}
+ 
+ 		itemDetail.ExtraQuality = 3
+ 
+@@ -241,7 +291,7 @@ func (c *GachaCtx) getPool() (int32, int) {
+ 		c.typeInfo.GuaranteeSSR++
+ 
+ 		guaranteeSR := c.typeInfo.GuaranteeSR == c.probability.GuaranteeSR-1
+-		guaranteeSSR := c.typeInfo.GuaranteeSSR == c.probability.GuaranteeSSR
++		guaranteeSSR := c.typeInfo.GuaranteeSSR >= c.probability.GuaranteeSSR
+ 		if guaranteeSSR { // ssr
+ 			return c.probabilitySSR(true), characterSSR // TODO 这里后期要做特殊处理，自选池不允许歪
+ 		}
+diff --git a/game/model/item.go b/game/model/item.go
+index 1e8aace..c421eb2 100644
+--- a/game/model/item.go
++++ b/game/model/item.go
+@@ -4,6 +4,7 @@ import (
+ 	"errors"
+ 	"fmt"
+ 	"math/rand/v2"
++	"reflect"
+ 	"sync"
+ 	"time"
+ 
+@@ -63,6 +64,9 @@ type AddItemCtx struct {
+ }
+ 
+ func (c *AddItemCtx) AddItemDetail() *proto.ItemDetail {
++	if c == nil || c.EBagItemTag == nil || reflect.ValueOf(c.EBagItemTag).IsNil() {
++		return nil
++	}
+ 	item := c.EBagItemTag.ItemDetail()
+ 	if item == nil {
+ 		return nil
+@@ -86,6 +90,9 @@ func (s *Player) AddAllTypeItem(id uint32, num int64) *AddItemCtx {
+ 		Num: num,
+ 	}
+ 	tag := proto.EBagItemTag(conf.NewBagItemTag)
++	if (tag == proto.EBagItemTag_EBagItemTag_TreasureMap || tag == proto.EBagItemTag_EBagItemTag_Armor || tag == proto.EBagItemTag_EBagItemTag_Weapon) && !LocalItemAvailable(id) {
++		return nil
++	}
+ 	switch tag {
+ 	case proto.EBagItemTag_EBagItemTag_Gift,
+ 		proto.EBagItemTag_EBagItemTag_Fragment, // 角色碎片
+@@ -149,7 +156,7 @@ func (s *Player) AddAllTypeItem(id uint32, num int64) *AddItemCtx {
+ 		if gdconf.GetAbilityByItemId(uint32(conf.ID)) == nil {
+ 			return nil
+ 		}
+-		i.AddItemBase(uint32(conf.ID), 1)
++		ctx.EBagItemTag = i.AddItemBase(uint32(conf.ID), 1)
+ 	case proto.EBagItemTag_EBagItemTag_Expression: // 表情
+ 		ctx.EBagItemTag = s.GetChatModel().AddUnExpression(id)
+ 	case proto.EBagItemTag_EBagItemTag_Weapon:
+@@ -168,6 +175,9 @@ func (s *Player) AddAllTypeItem(id uint32, num int64) *AddItemCtx {
+ 		log.Game.Warnf("未知的物品类型Type:%s", tag.String())
+ 		return nil
+ 	}
++	if ctx.EBagItemTag == nil || reflect.ValueOf(ctx.EBagItemTag).IsNil() {
++		return nil
++	}
+ 	return ctx
+ }
+ 
+@@ -245,6 +255,8 @@ func (i *ItemBaseInfo) ItemDetail() *proto.ItemDetail {
+ }
+ 
+ type ItemWeaponInfo struct {
++	LocalEdited bool               `json:"localEdited,omitempty"`
++	LocalStats  map[string]float64 `json:"localStats,omitempty"`
+ 	*ItemBaseInfo
+ 	WeaponId         uint32                  `json:"weaponId,omitempty"`         // 武器id
+ 	InstanceId       uint32                  `json:"instanceId,omitempty"`       // 索引id
+@@ -428,6 +440,9 @@ func (i *ItemWeaponInfo) WeaponInstance() *proto.WeaponInstance {
+ }
+ 
+ type ItemFashionInfo struct {
++	ColorantID   uint32               `json:"colorantId,omitempty"`
++	PreviewColor *PosColor            `json:"previewColor,omitempty"`
++	PendingDyes  map[uint32]*PosColor `json:"pendingDyes,omitempty"`
+ 	*ItemBaseInfo
+ 	OutfitId   uint32                      `json:"outfitId,omitempty"`
+ 	DyeSchemes map[uint32]*OutfitDyeScheme `json:"dyeSchemes,omitempty"`
+@@ -593,7 +608,7 @@ func (i *ItemModel) GetItemArmorInfo(instanceId uint32) *ItemArmorInfo {
+ func (i *ItemModel) AddItemArmor(armorId uint32) *ItemArmorInfo {
+ 	conf := gdconf.GetArmorAllInfo(armorId)
+ 	list := i.GetItemArmorMap()
+-	if conf == nil || list == nil {
++	if conf == nil || conf.ArmorInfo == nil || list == nil || !LocalItemAvailable(armorId) {
+ 		log.Game.Warnf("添加Armor失败,数据异常或不存在ArmorId:%v", armorId)
+ 		return nil
+ 	}
+@@ -618,6 +633,9 @@ func (i *ItemModel) AddItemArmor(armorId uint32) *ItemArmorInfo {
+ 		PropertyIndex:    1,
+ 		IsLock:           false,
+ 	}
++	if !LocalInitializeArmorStats(info) {
++		return nil
++	}
+ 	list[instanceId] = info
+ 	return info
+ }
+diff --git a/game/model/quest.go b/game/model/quest.go
+index 4869ebe..f0700c9 100644
+--- a/game/model/quest.go
++++ b/game/model/quest.go
+@@ -48,6 +48,18 @@ func (s *Player) GetQuestDetail() *proto.QuestDetail {
+ 		alg.AddList(&info.Quests, quest)
+ 	}
+ 
++	// Saved narrative completions override the legacy main-story defaults.
++	byID := map[uint32]*proto.Quest{}
++	for _, q := range info.Quests {
++		byID[q.QuestId] = q
++	}
++	for id, q := range s.LocalProgress().Quests {
++		byID[id] = q
++	}
++	info.Quests = nil
++	for _, q := range byID {
++		info.Quests = append(info.Quests, q)
++	}
+ 	return info
+ }
+ 
+diff --git a/game/model/scene.go b/game/model/scene.go
+index 6dee2b7..34b051e 100644
+--- a/game/model/scene.go
++++ b/game/model/scene.go
+@@ -89,6 +89,9 @@ func (s *Player) GetSceneModel() *SceneModel {
+ }
+ 
+ func (sm *SceneModel) GetWorldLevel() uint32 {
++	if !gdconf.ValidWorldLevel(sm.WorldLevel) {
++		sm.WorldLevel = gdconf.DefaultWorldLevel()
++	}
+ 	return sm.WorldLevel
+ }
+ 
+diff --git a/game/model/shop.go b/game/model/shop.go
+index 2e34586..382a0aa 100644
+--- a/game/model/shop.go
++++ b/game/model/shop.go
+@@ -54,6 +54,10 @@ func (s *ShopInfo) GetGridInfos() map[uint32]*GridInfo {
+ }
+ 
+ func (s *ShopInfo) GetGridInfo(gridId uint32) *GridInfo {
++	conf := gdconf.GetGrid(s.ShopID, gridId)
++	if conf == nil {
++		return nil
++	}
+ 	ls := s.GetGridInfos()
+ 	info, ok := ls[gridId]
+ 	if !ok {
+@@ -68,6 +72,7 @@ func (s *ShopInfo) GetGridInfo(gridId uint32) *GridInfo {
+ 		}
+ 		ls[gridId] = info
+ 	}
++	info.PoolID = uint32(conf.ShopPoolID)
+ 	return info
+ }
+ 
+@@ -79,6 +84,9 @@ type GridInfo struct {
+ }
+ 
+ func (g *GridInfo) ShopGrid() *proto.ShopGrid {
++	if g == nil {
++		return nil
++	}
+ 	info := &proto.ShopGrid{
+ 		Id:         g.ShopID,
+ 		GridId:     g.GridID,
+diff --git a/game/model/user.go b/game/model/user.go
+index a6983d1..2dea1ef 100644
+--- a/game/model/user.go
++++ b/game/model/user.go
+@@ -11,31 +11,35 @@ import (
+ )
+ 
+ type Player struct {
+-	Conn          ofnet.Conn      `json:"-"`
+-	Online        bool            `json:"-"`
+-	NetFreeze     bool            `json:"-"`
+-	Created       time.Time       `json:"-"`                       // 创建时间
+-	ActiveTime    time.Time       `json:"-"`                       // 上一次活跃时间
+-	LastSaveTime  time.Time       `json:"-"`                       // 上一次数据保存时间
+-	SaveLock      bool            `json:"-"`                       // 是否在db写入队列中
+-	UserId        uint32          `json:"-"`                       // 玩家id
+-	NickName      string          `json:"-"`                       // 玩家昵称
+-	LoginUUID     string          `json:"-"`                       // 当前登录uuid
+-	InstanceIndex uint32          `json:"instanceIndex,omitempty"` // 唯一索引生成
+-	Item          *ItemModel      `json:"item,omitempty"`          // 背包
+-	Character     *CharacterModel `json:"character,omitempty"`     // 角色
+-	Team          *TeamModel      `json:"team,omitempty"`          // 队伍
+-	Archive       *ArchiveModel   `json:"archive,omitempty"`       // 信息记录
+-	Chat          *ChatModel      `json:"chat,omitempty"`          // 聊天
+-	Gacha         *GachaModel     `json:"gacha,omitempty"`         // 卡池
+-	Garden        *GardenModel    `json:"garden,omitempty"`        // 花园
+-	Shop          *ShopModel      `json:"shop,omitempty"`          // 商店
+-	Scene         *SceneModel     `json:"scene,omitempty"`         // 场景信息
+-	Dungeon       *DungeonModel   `json:"dungeon,omitempty"`       // 副本
++	Unlocks          *LocalUnlockState      `json:"localUnlocks,omitempty"`
++	InventoryArchive *LocalInventoryArchive `json:"localInventoryArchive,omitempty"`
++	Progress         *LocalProgress         `json:"localProgress,omitempty"`
++	Conn             ofnet.Conn             `json:"-"`
++	Online           bool                   `json:"-"`
++	NetFreeze        bool                   `json:"-"`
++	Created          time.Time              `json:"-"`                       // 创建时间
++	ActiveTime       time.Time              `json:"-"`                       // 上一次活跃时间
++	LastSaveTime     time.Time              `json:"-"`                       // 上一次数据保存时间
++	SaveLock         bool                   `json:"-"`                       // 是否在db写入队列中
++	UserId           uint32                 `json:"-"`                       // 玩家id
++	NickName         string                 `json:"-"`                       // 玩家昵称
++	LoginUUID        string                 `json:"-"`                       // 当前登录uuid
++	InstanceIndex    uint32                 `json:"instanceIndex,omitempty"` // 唯一索引生成
++	Item             *ItemModel             `json:"item,omitempty"`          // 背包
++	Character        *CharacterModel        `json:"character,omitempty"`     // 角色
++	Team             *TeamModel             `json:"team,omitempty"`          // 队伍
++	Archive          *ArchiveModel          `json:"archive,omitempty"`       // 信息记录
++	Chat             *ChatModel             `json:"chat,omitempty"`          // 聊天
++	Gacha            *GachaModel            `json:"gacha,omitempty"`         // 卡池
++	Garden           *GardenModel           `json:"garden,omitempty"`        // 花园
++	Shop             *ShopModel             `json:"shop,omitempty"`          // 商店
++	Scene            *SceneModel            `json:"scene,omitempty"`         // 场景信息
++	Dungeon          *DungeonModel          `json:"dungeon,omitempty"`       // 副本
+ }
+ 
+ // 将玩家状态重置成在线
+ func (s *Player) Init(conn ofnet.Conn, uuid string) {
++	s.LocalRepairInventory()
+ 	s.Conn = conn
+ 	s.Online = true
+ 	s.NetFreeze = false
+diff --git a/game/player_ability.go b/game/player_ability.go
+index dab617a..ed8ac80 100644
+--- a/game/player_ability.go
++++ b/game/player_ability.go
+@@ -19,7 +19,7 @@ func (g *Game) AbilityBadgeList(s *model.Player, msg *alg.GameMsg) {
+ func (g *Game) PlayerAbilityList(s *model.Player, msg *alg.GameMsg) {
+ 	rsp := &proto.PlayerAbilityListRsp{
+ 		Status:      proto.StatusCode_StatusCode_Ok,
+-		AbilityList: make([]*proto.PlayerAbility, 0),
++		AbilityList: s.LocalAbilityList(),
+ 	}
+ 	defer g.send(s, msg.PacketId, rsp)
+ }
+diff --git a/game/player_basic.go b/game/player_basic.go
+index 0ad7edf..5189fbc 100644
+--- a/game/player_basic.go
++++ b/game/player_basic.go
+@@ -194,11 +194,7 @@ func (g *Game) PlayerMainData(s *model.Player, msg *alg.GameMsg) {
+ 		rsp.UnlockFunctions = s.GetUnlockFunctions()
+ 		rsp.PlacedCharacters = s.GetCharacterModel().GetPlacedCharacters() // 摆放的角色列表
+ 		rsp.FurnitureItemInfo = s.GetItemModel().FurnitureItemInfo()       // 已摆放的家具
+-		rsp.DailyTask = &proto.PlayerDailyTask{
+-			Tasks:             make(map[uint32]uint32),
+-			TodayConverted:    0,
+-			ExchangeTimesLeft: 0,
+-		}
++		rsp.DailyTask = s.LocalDailyTask()
+ 	}
+ }
+ 
+@@ -207,6 +203,7 @@ func (g *Game) loginGame(s *model.Player) {
+ 	g.GatherSceneLimitRecoveryNotice(s)
+ 	// 物品
+ 	g.AllPackNotice(s)
++	g.send(s, 0, &proto.AchieveActionUnLockNotice{Status: proto.StatusCode_StatusCode_Ok, ActionIdLst: s.LocalUnlockedActions()})
+ 	// 祝福树
+ 	g.BlessTreeNotice(s)
+ 	// 进入房间
+@@ -380,6 +377,9 @@ func (g *Game) AcceptQuest(s *model.Player, msg *alg.GameMsg) {
+ 			ActivityId:    0,
+ 		},
+ 	}
++	if q := s.LocalProgress().Quests[req.QuestId]; q != nil {
++		rsp.Quest = q
++	}
+ 	defer g.send(s, msg.PacketId, rsp)
+ }
+ 
+diff --git a/game/player_bless.go b/game/player_bless.go
+index 837eaf0..eb71bd6 100644
+--- a/game/player_bless.go
++++ b/game/player_bless.go
+@@ -10,5 +10,10 @@ func (g *Game) BlessTreeNotice(s *model.Player) {
+ 		Status: proto.StatusCode_StatusCode_Ok,
+ 		Tress:  make(map[uint32]*proto.PlayerBlessTreeInfo),
+ 	}
++	if s.Unlocks != nil {
++		for id, nodes := range s.Unlocks.BlessTrees {
++			notice.Tress[id] = &proto.PlayerBlessTreeInfo{TreeIds: nodes}
++		}
++	}
+ 	defer g.send(s, 0, notice)
+ }
+diff --git a/game/player_character.go b/game/player_character.go
+index 8fd4239..af982cc 100644
+--- a/game/player_character.go
++++ b/game/player_character.go
+@@ -143,6 +143,11 @@ func (g *Game) OutfitPresetUpdate(s *model.Player, msg *alg.GameMsg) {
+ 	characterInfo := s.GetCharacterModel().GetCharacterInfo(req.CharId)
+ 	if characterInfo == nil {
+ 		log.Game.Warnf("保存角色预设装扮失败,角色%v不存在", req.CharId)
++		rsp.Status = proto.StatusCode_StatusCode_BadReq
++		return
++	}
++	if req.Preset == nil || req.Preset.PresetIndex >= gdconf.GetConstant().OutfitPresetNum {
++		rsp.Status = proto.StatusCode_StatusCode_BadReq
+ 		return
+ 	}
+ 	outfitPreset := characterInfo.GetOutfitPreset(req.Preset.PresetIndex)
+@@ -159,8 +164,8 @@ func (g *Game) OutfitPresetUpdate(s *model.Player, msg *alg.GameMsg) {
+ 	outfitPreset.Ornament = req.Preset.Ornament
+ 	outfitPreset.OrnamentDyeSchemeIndex = req.Preset.OrnamentDyeSchemeIndex
+ 	outfitPreset.OutfitHideInfo = &model.OutfitHideInfo{
+-		HideOrn:   req.Preset.OutfitHideInfo.HideOrn,
+-		HideBraid: req.Preset.OutfitHideInfo.HideBraid,
++		HideOrn:   req.Preset.GetOutfitHideInfo().GetHideOrn(),
++		HideBraid: req.Preset.GetOutfitHideInfo().GetHideBraid(),
+ 	}
+ 	outfitPreset.PendTop = req.Preset.PendTop
+ 	outfitPreset.PendTopDyeSchemeIndex = req.Preset.PendTopDyeSchemeIndex
+@@ -180,6 +185,9 @@ func (g *Game) OutfitPresetUpdate(s *model.Player, msg *alg.GameMsg) {
+ 	outfitPreset.PendLeftFootDyeSchemeIndex = req.Preset.PendLeftFootDyeSchemeIndex
+ 	outfitPreset.PendRightFoot = req.Preset.PendRightFoot
+ 	outfitPreset.PendRightFootDyeSchemeIndex = req.Preset.PendRightFootDyeSchemeIndex
++	if err := s.SavePlayer(); err != nil {
++		rsp.Status = proto.StatusCode_StatusCode_Fail
++	}
+ }
+ 
+ func (g *Game) OutfitPresetSwitch(s *model.Player, msg *alg.GameMsg) {
+@@ -199,7 +207,14 @@ func (g *Game) OutfitPresetSwitch(s *model.Player, msg *alg.GameMsg) {
+ 		log.Game.Warnf("保存角色预设装扮失败,角色%v不存在", req.CharId)
+ 		return
+ 	}
++	if req.UsePresetIndex >= gdconf.GetConstant().OutfitPresetNum {
++		rsp.Status = proto.StatusCode_StatusCode_BadReq
++		return
++	}
+ 	characterInfo.InUseOutfitPresetIndex = req.UsePresetIndex
++	if err := s.SavePlayer(); err != nil {
++		rsp.Status = proto.StatusCode_StatusCode_Fail
++	}
+ }
+ 
+ func (g *Game) OutfitColorantSelect(s *model.Player, msg *alg.GameMsg) {
+diff --git a/game/player_collect.go b/game/player_collect.go
+index 6218cda..479713f 100644
+--- a/game/player_collect.go
++++ b/game/player_collect.go
+@@ -18,13 +18,7 @@ func (g *Game) GetCollectItemIds(s *model.Player, msg *alg.GameMsg) {
+ 		ItemIds: make([]uint32, 0),
+ 	}
+ 	defer g.send(s, msg.PacketId, rsp)
+-	for _, scene := range s.GetSceneModel().GetSceneMap() {
+-		for _, collection := range scene.GetCollections() {
+-			for _, v := range collection.ItemMap {
+-				alg.AddLists(&rsp.ItemIds, v.ItemId)
+-			}
+-		}
+-	}
++	rsp.ItemIds = s.LocalCollectionIDs()
+ }
+ 
+ func (g *Game) Collecting(s *model.Player, msg *alg.GameMsg) {
+diff --git a/game/player_gacha.go b/game/player_gacha.go
+index 7f82a85..d1d7dc5 100644
+--- a/game/player_gacha.go
++++ b/game/player_gacha.go
+@@ -15,15 +15,8 @@ func (g *Game) GachaList(s *model.Player, msg *alg.GameMsg) {
+ 		Gachas: make([]*proto.GachaInfo, 0),
+ 	}
+ 	defer g.send(s, msg.PacketId, rsp)
+-	list := s.GetGachaModel().GetGachaMap()
+ 	for _, v := range gdconf.GetOpenGachas() {
+-		info, ok := list[uint32(v.Conf.ID)]
+-		if !ok {
+-			alg.AddList(&rsp.Gachas,
+-				model.DefaultGachaInfo(uint32(v.Conf.ID)).GachaInfo())
+-		} else {
+-			alg.AddList(&rsp.Gachas, info.GachaInfo())
+-		}
++		rsp.Gachas = append(rsp.Gachas, s.GetGachaModel().GetPbGachaInfo(uint32(v.Conf.ID)))
+ 	}
+ }
+ 
+@@ -57,11 +50,14 @@ func (g *Game) Gacha(s *model.Player, msg *alg.GameMsg) {
+ 		Info:   nil,
+ 	}
+ 	defer func() {
+-		rsp.Info = s.GetGachaModel().GetGachaInfo(req.GachaId).GachaInfo()
++		if gdconf.GetGachaData(req.GachaId) != nil {
++			rsp.Info = s.GetGachaModel().GetPbGachaInfo(req.GachaId)
++		}
+ 		g.send(s, msg.PacketId, rsp)
+ 	}()
+ 	ctx, err := s.NewGachaCtx(req)
+ 	if err != nil {
++		rsp.Status = proto.StatusCode_StatusCode_BadReq
+ 		log.Game.Errorf("NewGachaCtx err:%v", err)
+ 		return
+ 	}
+@@ -79,7 +75,7 @@ func (g *Game) OptionalUpPoolItem(s *model.Player, msg *alg.GameMsg) {
+ 	defer g.send(s, msg.PacketId, rsp)
+ 	info := s.GetGachaModel().GetGachaInfo(req.GachaId)
+ 	info.OptionalItemId = req.ItemId
+-	rsp.Info = info.GachaInfo()
++	rsp.Info = s.GetGachaModel().GetPbGachaInfo(req.GachaId)
+ }
+ 
+ func (g *Game) ChooseGacha(s *model.Player, msg *alg.GameMsg) {
+diff --git a/game/player_scene.go b/game/player_scene.go
+index ddfa1b8..fa85306 100644
+--- a/game/player_scene.go
++++ b/game/player_scene.go
+@@ -57,18 +57,7 @@ func (g *Game) SceneProcessList(s *model.Player, msg *alg.GameMsg) {
+ 		SceneProcessList: make([]*proto.SceneProcess, 0),
+ 	}
+ 	defer g.send(s, msg.PacketId, rsp)
+-	rsp.SceneProcessList = append(rsp.SceneProcessList, &proto.SceneProcess{
+-		SceneId: 9999,
+-		Process: 1,
+-	})
+-	rsp.SceneProcessList = append(rsp.SceneProcessList, &proto.SceneProcess{
+-		SceneId: 1,
+-		Process: 1,
+-	})
+-	rsp.SceneProcessList = append(rsp.SceneProcessList, &proto.SceneProcess{
+-		SceneId: 100,
+-		Process: 1,
+-	})
++	rsp.SceneProcessList = s.LocalSceneProcesses()
+ }
+ 
+ func (g *Game) SendAction(s *model.Player, msg *alg.GameMsg) {
+diff --git a/game/player_world.go b/game/player_world.go
+index 20c5f30..4c49f92 100644
+--- a/game/player_world.go
++++ b/game/player_world.go
+@@ -2,6 +2,7 @@ package game
+ 
+ import (
+ 	"gucooing/lolo/game/model"
++	"gucooing/lolo/gdconf"
+ 	"gucooing/lolo/pkg/alg"
+ 	"gucooing/lolo/protocol/proto"
+ )
+@@ -13,4 +14,14 @@ func (g *Game) WorldLevelAchieveList(s *model.Player, msg *alg.GameMsg) {
+ 		UnlockWorldLevels: make([]uint32, 0),
+ 	}
+ 	defer g.send(s, msg.PacketId, rsp)
++	for _, v := range gdconf.GetLocalCatalog().Level.GetWorldLevel().GetDatas() {
++		rsp.UnlockWorldLevels = append(rsp.UnlockWorldLevels, uint32(v.ID))
++		for _, a := range v.WorldLevelInfo {
++			count := uint64(1)
++			if c := gdconf.GetAchieveConfigure(uint32(a.AchieveID)); c != nil && c.CountParam > 0 {
++				count = uint64(c.CountParam)
++			}
++			rsp.Achieves = append(rsp.Achieves, &proto.Achieve{AchieveId: uint32(a.AchieveID), Count: count})
++		}
++	}
+ }
+diff --git a/game/scene_channel.go b/game/scene_channel.go
+index db1e1e0..eb27710 100644
+--- a/game/scene_channel.go
++++ b/game/scene_channel.go
+@@ -536,6 +536,7 @@ func (c *ChannelInfo) GetPbSceneData(scenePlayer *ScenePlayer) (info *proto.Scen
+ 	for _, flagConfigure := range gdconf.GetSceneFlagConfigure(c.SceneInfo.SceneId) {
+ 		alg.AddLists(&info.FlagIds, uint32(flagConfigure.ID))
+ 	}
++	scenePlayer.Player.LocalFillSceneData(info)
+ 	return
+ }
+ 
+diff --git a/gdconf/data.ClientVersion.go b/gdconf/data.ClientVersion.go
+index 85afebd..62f9913 100644
+--- a/gdconf/data.ClientVersion.go
++++ b/gdconf/data.ClientVersion.go
+@@ -1,6 +1,7 @@
+ package gdconf
+ 
+ type ClientVersion struct {
++	HotOssUrl  string            `json:"HotOssUrl,omitempty"`
+ 	VersionMap map[string]string `json:"VersionMap"`
+ }
+ 
+@@ -12,3 +13,10 @@ func (g *GameConfig) loadClientVersion() {
+ func GetClientVersion(v string) string {
+ 	return cc.Data.ClientVersion.VersionMap[v]
+ }
++
++func GetClientHotURL() string {
++	if cc.Data.ClientVersion.HotOssUrl != "" {
++		return cc.Data.ClientVersion.HotOssUrl
++	}
++	return "http://cdn3-of.inutan.com/Resources;https://cdn3-of.inutan.com/Resources"
++}
+diff --git a/gdconf/excel.Ability.go b/gdconf/excel.Ability.go
+index cdf87e0..deed7ff 100644
+--- a/gdconf/excel.Ability.go
++++ b/gdconf/excel.Ability.go
+@@ -28,3 +28,5 @@ func (g *GameConfig) loadAbility() {
+ func GetAbilityByItemId(itemId uint32) *excel.AbilityConfigure {
+ 	return cc.Excel.Ability.AbilityItemMap[itemId]
+ }
++
++func GetAbilityMap() map[uint32]*excel.AbilityConfigure { return cc.Excel.Ability.AbilityMap }
+diff --git a/gdconf/game.config.go b/gdconf/game.config.go
+index 9292cf6..07084f0 100644
+--- a/gdconf/game.config.go
++++ b/gdconf/game.config.go
+@@ -20,6 +20,7 @@ type GameConfig struct {
+ 	excelPath   string
+ 	configPath  string
+ 
++	Local  *LocalCatalog
+ 	Excel  *Excel
+ 	Config *Config
+ 	Data   *Data
+@@ -107,6 +108,8 @@ func (g *GameConfig) load() {
+ 
+ 	// config
+ 	g.loadSceneConfig()
++	g.loadLocalCatalog()
++	g.loadLocalGacha()
+ }
+ 
+ type Data struct {
+diff --git a/sdk/dispatch.go b/sdk/dispatch.go
+index a9625cd..8bb5704 100644
+--- a/sdk/dispatch.go
++++ b/sdk/dispatch.go
+@@ -69,14 +69,14 @@ func clientHotUpdate(c *gin.Context) {
+ 	info := &quick.GMClientConfig{
+ 		Status:               true,
+ 		Message:              "success",
+-		HotOssUrl:            "http://cdn3-of.inutan.com/Resources;https://cdn3-of.inutan.com/Resources",
++		HotOssUrl:            gdconf.GetClientHotURL(),
+ 		CurrentVersion:       gdconf.GetClientVersion(req.Version),
+ 		Server:               "cn_prod_main",
+ 		SsAppId:              "",
+ 		SsServerUrl:          "https://te-of.inutan.com",
+ 		OpenGm:               true,
+-		OpenErrorLog:         true,
+-		OpenNetConnectingLog: true,
++		OpenErrorLog:         false,
++		OpenNetConnectingLog: false,
+ 		IpAddress:            c.ClientIP(),
+ 		PayUrl:               "http://api-callback-of.inutan.com:19701",
+ 		IsTestServer:         true,

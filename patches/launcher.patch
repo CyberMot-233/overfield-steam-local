@@ -1,0 +1,139 @@
+diff --git a/World-Control.ps1 b/World-Control.ps1
+index 96c25c9..b9c559e 100644
+--- a/World-Control.ps1
++++ b/World-Control.ps1
+@@ -241,7 +241,7 @@ function Invoke-World {
+             if ($LASTEXITCODE -ne 0) { throw 'Could not stop the previous shared services.' }
+         }
+     }
+-    if ($LaunchClient -and -not (Test-Path -LiteralPath $taskOriginalClient)) { throw 'Game client not found. Select the local Bilibili PC installation for solo play.' }
++    if ($LaunchClient -and ([string]::IsNullOrWhiteSpace($taskOriginalClient) -or -not (Test-Path -LiteralPath $taskOriginalClient))) { throw 'Game client not found. Select the installed Steam, Bilibili or supported TapTap PC game folder.' }
+     $taskInfo=Python-Json @('prepare','--root',$GameRoot,'--base',$taskBase,'--mode',$Mode,'--host',$taskTarget)
+     if (-not $taskState -or -not $taskState.Active) {
+         $taskBefore=Get-ItemProperty -LiteralPath $taskRegistry
+@@ -286,8 +286,17 @@ function Invoke-World {
+                 $taskClientArguments=@('-X','utf8',(Join-Path $PSScriptRoot 'service_runner.py'),'--visible','--executable',$taskClient,'--cwd',(Split-Path -Parent $taskClient),
+                     '--stdout',(Join-Path $taskProfile 'logs\client-stdout.log'),'--stderr',(Join-Path $taskProfile 'logs\client-stderr.log'),
+                     '--env',"LOLO_SDK_UID=$($taskUidData.sdkUid)",'--env',"LOLO_SDK_LOG=$taskSdkLog",'--env',"LOLO_DISPATCH_HOST=$taskTarget",'--env',"LOLO_DISPATCH_PORT=$taskHttp",'--','-logFile',(Join-Path $taskProfile 'logs\Player.log'))
+-                & $taskPython @taskClientArguments | Out-Null
+-                if ($LASTEXITCODE -ne 0) { throw 'Local UID client could not launch.' }
++                $taskRunnerErrors = Join-Path $taskProfile 'logs\client-launch-error.log'
++                $taskPriorErrorPreference = $ErrorActionPreference
++                try {
++                    $ErrorActionPreference = 'Continue'
++                    & $taskPython @taskClientArguments 2> $taskRunnerErrors | Out-Null
++                    $taskRunnerExit = $LASTEXITCODE
++                } finally { $ErrorActionPreference = $taskPriorErrorPreference }
++                if ($taskRunnerExit -ne 0) {
++                    $taskDetails = (Get-Content -LiteralPath $taskRunnerErrors -Tail 8 -ErrorAction SilentlyContinue) -join [Environment]::NewLine
++                    throw ('Local UID client could not launch. ' + $taskDetails + [Environment]::NewLine + 'Log: ' + $taskRunnerErrors)
++                }
+                 Write-Output 'Client launched with local UID SDK.'
+             }
+         }
+diff --git a/capture_import.py b/capture_import.py
+index 5247475..adc42a4 100644
+--- a/capture_import.py
++++ b/capture_import.py
+@@ -151,11 +151,16 @@ def ensure_uid(database, uid):
+     if not 1 <= uid <= 4294967295: raise ValueError('UID must be a nonzero uint32.')
+     with closing(sqlite3.connect(database, timeout=10)) as connection, connection:
+         row = connection.execute('SELECT sdk_uid FROM of_user WHERE user_id=?', (uid,)).fetchone()
+-        if row: return int(row[0])
+-        if connection.execute('SELECT 1 FROM of_user WHERE sdk_uid=?', (uid,)).fetchone():
+-            raise ValueError('This UID conflicts with an existing account mapping.')
+-        connection.execute('INSERT INTO of_user(user_id,sdk_uid,ban) VALUES(?,?,0)', (uid, uid))
+-        return uid
++        if not row:
++            if connection.execute('SELECT 1 FROM of_user WHERE sdk_uid=?', (uid,)).fetchone():
++                raise ValueError('This UID conflicts with an existing account mapping.')
++            connection.execute('INSERT INTO of_user(user_id,sdk_uid,ban) VALUES(?,?,0)', (uid, uid))
++        # Steam does not open the new-name UI used by the other channel builds.
++        # Seed only missing/empty names; preserve imported player names.
++        if connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='of_game_basic'").fetchone():
++            connection.execute("INSERT OR IGNORE INTO of_game_basic(user_id,nick_name) VALUES(?,?)", (uid, 'Local' + str(uid)))
++            connection.execute("UPDATE of_game_basic SET nick_name=? WHERE user_id=? AND (nick_name IS NULL OR trim(nick_name)='')", ('Local' + str(uid), uid))
++        return int(row[0]) if row else uid
+ 
+ 
+ def capture_quality(main, entries):
+diff --git a/client_identity.py b/client_identity.py
+index 6a2cf04..101fc9c 100644
+--- a/client_identity.py
++++ b/client_identity.py
+@@ -28,6 +28,9 @@ def fingerprint(client):
+ def classify(client):
+     client = Path(client)
+     plugins = client / 'launcher_Data/Plugins'
++    # Steam packages also contain dormant QuickSDK PC binaries. Check Steam first.
++    if (plugins / 'x86_64/steam_api64.dll').is_file():
++        return 'steam-pc'
+     if (plugins / 'x86_64/PCGameSDK.dll').is_file():
+         return 'pcgamesdk'
+     if (plugins / 'Win/PCSDK_release/PCSDKUI.exe').is_file():
+diff --git a/service_runner.py b/service_runner.py
+index 9d0d4fb..66e3eab 100644
+--- a/service_runner.py
++++ b/service_runner.py
+@@ -8,8 +8,12 @@ import os
+ 
+ def launch(executable, arguments, cwd, stdout_path, stderr_path, extra_env=None, visible=False):
+     from client_identity import classify
+-    if visible and Path(executable).name.lower() == 'launcher.exe' and classify(Path(executable).parent) == 'quicksdk-pc':
+-        return launch_quicksdk(executable, cwd, stdout_path, stderr_path, extra_env or {})
++    if visible and Path(executable).name.lower() == 'launcher.exe':
++        channel = classify(Path(executable).parent)
++        if channel in ('quicksdk-pc', 'steam-pc'):
++            return launch_quicksdk(executable, cwd, stdout_path, stderr_path, extra_env or {}, channel)
++        if channel != 'pcgamesdk':
++            raise ValueError('Unsupported local client channel: ' + channel)
+     with open(stdout_path, 'ab', buffering=0) as output, open(stderr_path, 'ab', buffering=0) as error:
+         process = subprocess.Popen(
+             [executable, *arguments], cwd=cwd, stdin=subprocess.DEVNULL,
+@@ -20,29 +24,33 @@ def launch(executable, arguments, cwd, stdout_path, stderr_path, extra_env=None,
+     return process.pid
+ 
+ 
+-def launch_quicksdk(executable, cwd, stdout_path, stderr_path, environment):
++def launch_quicksdk(executable, cwd, stdout_path, stderr_path, environment, channel="quicksdk-pc"):
+     import sys, time, uuid
+-    from taptap_private_runner import validated_config
++    import importlib
++    adapter_name = "steam_private_runner" if channel == "steam-pc" else "taptap_private_runner"
++    validated_config = importlib.import_module(adapter_name).validated_config
+     host = environment.get('LOLO_DISPATCH_HOST', '')
+     port = int(environment.get('LOLO_DISPATCH_PORT', '0'))
+     uid = int(environment.get('LOLO_SDK_UID', '0'))
+     validated_config(Path(executable).parent, host, port, uid)
+     import frida  # fail before spawning if the portable adapter dependency is missing
+     result_path = Path(stdout_path).with_name('quicksdk-start-' + uuid.uuid4().hex + '.json')
+-    command = [sys.executable, '-X', 'utf8', str(Path(__file__).with_name('taptap_private_runner.py')),
++    command = [sys.executable, '-X', 'utf8', str(Path(__file__).with_name(adapter_name + '.py')),
+                '--client', str(Path(executable).parent), '--host', host, '--port', str(port),
+-               '--uid', str(uid), '--log', str(Path(stdout_path).with_name('quicksdk-local.jsonl')),
++               '--uid', str(uid), '--log', str(Path(stdout_path).with_name(channel + '-local.jsonl')),
+                '--result-path', str(result_path)]
+     with open(stdout_path, 'ab', buffering=0) as out, open(stderr_path, 'ab', buffering=0) as err:
+         worker = subprocess.Popen(command, cwd=cwd, stdin=subprocess.DEVNULL, stdout=out, stderr=err,
+                                   close_fds=True, creationflags=subprocess.CREATE_NO_WINDOW,
+                                   env=dict(os.environ, **environment))
++    succeeded = False
+     try:
+         deadline = time.monotonic() + 45
+         while time.monotonic() < deadline:
+             if result_path.is_file():
+                 result = json.loads(result_path.read_text(encoding='utf-8'))
+                 if result.get('ready') and result.get('pid'):
++                    succeeded = True
+                     return int(result['pid'])
+                 raise RuntimeError('QuickSDK local adapter did not become ready.')
+             if worker.poll() is not None:
+@@ -51,7 +59,7 @@ def launch_quicksdk(executable, cwd, stdout_path, stderr_path, environment):
+         raise TimeoutError('QuickSDK adapter startup timed out.')
+     finally:
+         result_path.unlink(missing_ok=True)
+-        if worker.poll() is None and not result_path.exists() and time.monotonic() >= deadline:
++        if not succeeded and worker.poll() is None:
+             worker.terminate()
+ 
+ 

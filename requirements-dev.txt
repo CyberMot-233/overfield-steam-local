@@ -1,0 +1,5 @@
+frida==17.24.3
+mitmproxy>=10,<13
+protobuf==7.36.2
+cramjam==2.14.0
+playwright==1.54.0

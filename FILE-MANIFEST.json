@@ -1,0 +1,347 @@
+[
+  {
+    "path": ".gitattributes",
+    "bytes": 89,
+    "sha256": "f45b774809cdeae81b4b12141b976aa612af80fb2fe5cfe1c32d3634a74172c8"
+  },
+  {
+    "path": ".gitignore",
+    "bytes": 276,
+    "sha256": "c36cb8be6e33362e28f8111b4693032eee348d66b190d87904bf66eace662e72"
+  },
+  {
+    "path": "companion/configure_local_gacha.py",
+    "bytes": 3030,
+    "sha256": "b3c9223a48249f38b28b993d14cf673c2b82c2fad90982305b357ff981524329"
+  },
+  {
+    "path": "companion/export_client_tables.py",
+    "bytes": 1750,
+    "sha256": "6f09ad9a34cd9dc61d914a685a7fc7ad265183fd87af08e50915204c8d8e39d0"
+  },
+  {
+    "path": "companion/index.html",
+    "bytes": 26866,
+    "sha256": "1d3d6d60fdf3906bd99a8a17d2c91ca47392e71a8d8f0211ea6e9bf90a25b10b"
+  },
+  {
+    "path": "companion/inspect_fashion.js",
+    "bytes": 7323,
+    "sha256": "05403855510ac7be0ea0049231c81e7ef6540e6345312dcec55533e2bd8bbdd8"
+  },
+  {
+    "path": "companion/inspect_units.js",
+    "bytes": 9936,
+    "sha256": "124e7814baf7a760bb7eeb39c4b30d61b95e47169f3a2566bd9f683a11ea05b8"
+  },
+  {
+    "path": "companion/manager.py",
+    "bytes": 28742,
+    "sha256": "bb2681701086b2aa045f4e7e51fc2c496c20fdd278b3f6a7c3c9e0fc60067c97"
+  },
+  {
+    "path": "companion/ManagerLauncher.cs",
+    "bytes": 762,
+    "sha256": "dd092cf66d5cbd80ae58ba720638d12ab9e7afd9f8095fccf1d6400a0deefea5"
+  },
+  {
+    "path": "companion/test_manager.py",
+    "bytes": 10347,
+    "sha256": "780f6fa1b07ff8343c3b74d434089b91cc1f283ac240db00961e2e786c855026"
+  },
+  {
+    "path": "companion/update_steam_resources.py",
+    "bytes": 6935,
+    "sha256": "0db408b20d4a7719cfdac16b47ffef094a8565cfd3e4bbbb3af2384a2e9e5f11"
+  },
+  {
+    "path": "companion/verify_dye_live.py",
+    "bytes": 3133,
+    "sha256": "591365f64ceb63623532e2c485159a039ca8ee555d83a8335cc91442c2211190"
+  },
+  {
+    "path": "companion/verify_fashion_live.py",
+    "bytes": 3156,
+    "sha256": "1eb3d6639e635f6d386b9030e3a3faecf261d6b800f521db6854680484f23f10"
+  },
+  {
+    "path": "companion/verify_live_attributes.py",
+    "bytes": 1643,
+    "sha256": "bcf99209ef79f529d26247c00f6e5a9393b5cbf21190309fc0df921e7399e670"
+  },
+  {
+    "path": "companion/verify_live_panel.py",
+    "bytes": 2848,
+    "sha256": "165fca2f88a81a704541a1f48a799d16a89880d4fae201dcb4cd83cbfd0567a8"
+  },
+  {
+    "path": "companion/verify_live_restart.py",
+    "bytes": 1332,
+    "sha256": "2e5191e433c755c33f39ef0d3e664d7378ae9fb7690668057d2fa2db247cb48b"
+  },
+  {
+    "path": "companion/verify_panel.py",
+    "bytes": 2941,
+    "sha256": "edf82b988598a9a21cafdcc7c312117ddb48fd46d3f5b4f298a69a3f261861fa"
+  },
+  {
+    "path": "companion/verify_progress.py",
+    "bytes": 2696,
+    "sha256": "ff5f3bdb57264f669699fa0b8d54026ca5603f62b6a4c2a82b6435d60e4898d1"
+  },
+  {
+    "path": "companion/verify_steam_panel.py",
+    "bytes": 1578,
+    "sha256": "4e095f05d0e6529f6c23d14d9d773b2b8c02fc9cf47bddf58b53530fd36f9ee7"
+  },
+  {
+    "path": "companion/verify_unit_isolation.py",
+    "bytes": 990,
+    "sha256": "2bdac8bce228fd84d1b0ad42b39efe894e48d42448f89ba98bd0b7fd4e030ccf"
+  },
+  {
+    "path": "companion/weapon_editor.js",
+    "bytes": 7547,
+    "sha256": "6ffbaff2fb9d91e7f078f56624520eaad800ae71a496dea1b4774596d8492f70"
+  },
+  {
+    "path": "docs/GitHub发布.md",
+    "bytes": 1188,
+    "sha256": "20619cbadb5fa548bf84fdca361717536e320a36976e4f4caa15b155a3ceb980"
+  },
+  {
+    "path": "docs/Steam更新与卡池.md",
+    "bytes": 2889,
+    "sha256": "e740310187acd1898dd5e1767587b0a3086031cba5067dc2a5344a2a3d1797b0"
+  },
+  {
+    "path": "docs/修复说明.md",
+    "bytes": 989,
+    "sha256": "472648ca85e0486fcec091334fb23ef8f154e7d9723813c7d785aeb251d54b7f"
+  },
+  {
+    "path": "docs/剧情地图与时装修复.md",
+    "bytes": 1775,
+    "sha256": "2803920dd7beec6a3da661db2df331bf1cb230bac5aa341869c255c5f1e1d3e4"
+  },
+  {
+    "path": "docs/实时属性与速度修复.md",
+    "bytes": 3648,
+    "sha256": "f22e8802dfccc3099d7f6492c41e6c668f23b2c7c58e64cb2d58b4411dc0052e"
+  },
+  {
+    "path": "docs/背包装备与一键解锁.md",
+    "bytes": 4680,
+    "sha256": "2f49e91611e5781b9d370e8e19eaf93f319181a40a928f879e540f53b7cddf8b"
+  },
+  {
+    "path": "docs/配置与账号.md",
+    "bytes": 1367,
+    "sha256": "1abbdf8ba5715095d403a2ce6c0365f81c12c2bf8af598eeb97816dff7cac53d"
+  },
+  {
+    "path": "docs/验证记录.md",
+    "bytes": 3223,
+    "sha256": "eb170904081bb9c942761b6d6c4c1d2cb88ebd6a2c183883f358b29158377188"
+  },
+  {
+    "path": "launcher/new/steam_live_tools.js",
+    "bytes": 6295,
+    "sha256": "25dc696a693e087abefa0901a44a3f248cbffe7ace6294081f48cc3f45fe15d9"
+  },
+  {
+    "path": "launcher/new/steam_local_compat.js",
+    "bytes": 12631,
+    "sha256": "c9f04e83c886a6bc975a045f1ae2b34d01da615852997edd48593af920138b44"
+  },
+  {
+    "path": "launcher/new/steam_private_agent.js",
+    "bytes": 4185,
+    "sha256": "a4c4d69fa87762c883a4bbba028ec78c002035f1080e922e176156d24805442f"
+  },
+  {
+    "path": "launcher/new/steam_private_runner.py",
+    "bytes": 9388,
+    "sha256": "956d2b0677eed15fbfb818f669d0b893d09e76ff7abbc6a5329fe7e5edede030"
+  },
+  {
+    "path": "launcher/new/steam_runtime_agent.js",
+    "bytes": 9056,
+    "sha256": "839d26d7cb09cc7dae0c09e8daf00fe537d420469aee036ff38156b8314e8e9d"
+  },
+  {
+    "path": "launcher/new/test_steam_private.py",
+    "bytes": 2134,
+    "sha256": "725ba896061926e57573f2847cecddc804840f5aa9c9862757520d330921d378"
+  },
+  {
+    "path": "LICENSE",
+    "bytes": 11357,
+    "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+  },
+  {
+    "path": "licenses/Lolo-Apache-2.0.txt",
+    "bytes": 11357,
+    "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+  },
+  {
+    "path": "NOTICE",
+    "bytes": 508,
+    "sha256": "d48d2dde5956feb446da50e8d5822dd6806fa8f3199423a66e1f516814e7f09c"
+  },
+  {
+    "path": "patches/launcher.patch",
+    "bytes": 8899,
+    "sha256": "315f29c1c0046fa04fd046dffd9717c4484f44bcfb4aa2cf3f5a502c22100a04"
+  },
+  {
+    "path": "patches/lolo.patch",
+    "bytes": 28085,
+    "sha256": "d6daca40fdd38cf5e8a07c3a92590685992646cc0c3ec149461ec6f6ce4cf6a0"
+  },
+  {
+    "path": "README.md",
+    "bytes": 4391,
+    "sha256": "c51a058ec6934ba116c7338367a9fb9147e0f21a65df75513365e38f703d85fe"
+  },
+  {
+    "path": "requirements-dev.txt",
+    "bytes": 85,
+    "sha256": "3e7efbc2cfa136e9c787cf1b76977309e38c90d41c55cacbdf701f061a163d0e"
+  },
+  {
+    "path": "scripts/Build-Local.ps1",
+    "bytes": 3100,
+    "sha256": "8bb90d5e9869a71bced9099658dc0267a73d8b33aa433dbe0a259903c3dad9e6"
+  },
+  {
+    "path": "scripts/Install-Local.ps1",
+    "bytes": 2228,
+    "sha256": "27bcc86edae1ea344f33b32c9b6787972fffe9ceb8f5c72290dcd8f852c3cd63"
+  },
+  {
+    "path": "scripts/Publish-GitHub.ps1",
+    "bytes": 1579,
+    "sha256": "ed610390e698737eccf9b363b1efbddccd3e8ef789bc7d1f11bb21216ff72296"
+  },
+  {
+    "path": "server/new/cmd/localgm/main.go",
+    "bytes": 7490,
+    "sha256": "b1552512fbb3a9dc056b81c8a579d4549df42a3d4bd4515df364456bd3e1329c"
+  },
+  {
+    "path": "server/new/game/local_admin.go",
+    "bytes": 1490,
+    "sha256": "cae46b8f505989452932bef2c36eae5c5d35cc2af7c988500b3d3154837303b8"
+  },
+  {
+    "path": "server/new/game/local_fashion.go",
+    "bytes": 3573,
+    "sha256": "926353f05de01e038171da6ec3f53cc92fc91d71f3425366c219a5e7e1bbef19"
+  },
+  {
+    "path": "server/new/game/local_gm.go",
+    "bytes": 5075,
+    "sha256": "cf7c799a9fba66c061cd75209a6be457c4d4dda9d9023ff937ccc8aedf7a6559"
+  },
+  {
+    "path": "server/new/game/local_play.go",
+    "bytes": 3822,
+    "sha256": "b58d2ab35073a1d387fe4c85de02381f41437359ad23158023c7c03cf498e2cf"
+  },
+  {
+    "path": "server/new/game/local_weapon.go",
+    "bytes": 3830,
+    "sha256": "d81e7efa2187cfb3256829c59fe860573754e8a4399fbc1a9c035b1032abb37f"
+  },
+  {
+    "path": "server/new/game/model/local_character_test.go",
+    "bytes": 1527,
+    "sha256": "d2bb5341b1585104eda33a73d403660ae4781b600ba41b419c924164d8154653"
+  },
+  {
+    "path": "server/new/game/model/local_collection.go",
+    "bytes": 5047,
+    "sha256": "d53b78acb46ce834c71175a83e0fca84fbf2daef4ce8aa047c605563ebd4c3bc"
+  },
+  {
+    "path": "server/new/game/model/local_fashion.go",
+    "bytes": 2216,
+    "sha256": "e8cb6a7ba8e3a8fbd82ac13f24479f42b674d1a7f899df739ab562904c4d2d21"
+  },
+  {
+    "path": "server/new/game/model/local_gacha_test.go",
+    "bytes": 1168,
+    "sha256": "b48c99eadebe525f60e570b3a4f05f3d2b6501e808d63deb2bfa1f0d361e45e7"
+  },
+  {
+    "path": "server/new/game/model/local_inventory.go",
+    "bytes": 5669,
+    "sha256": "0f55f1ca4f01e71977fba966586bffbc14502025456f2789aa45645f4504cc15"
+  },
+  {
+    "path": "server/new/game/model/local_inventory_test.go",
+    "bytes": 4760,
+    "sha256": "06da074729bcc75a7b29324fd50fb5aa7ed7903106e2a8beb2f868abbeda61fd"
+  },
+  {
+    "path": "server/new/game/model/local_progress.go",
+    "bytes": 7491,
+    "sha256": "0407fbca183f58dfabdb68f5e4c5470a4c449bff70bcb9185e29e4ff2edb51c8"
+  },
+  {
+    "path": "server/new/game/model/local_progress_test.go",
+    "bytes": 2987,
+    "sha256": "f88813a85d27acb61c4936c5d3ff3b70bd4fc394355f336efdccd74c91bd0712"
+  },
+  {
+    "path": "server/new/game/model/local_unlock.go",
+    "bytes": 6453,
+    "sha256": "8b15d3d98a1f4c96e8776c03118d3c2165641363356f6e04d267661ae3538c2d"
+  },
+  {
+    "path": "server/new/game/model/local_unlock_test.go",
+    "bytes": 2071,
+    "sha256": "45b5c8d33d15fd9f90bf5388c8def9c610941c1e7868d23ea57ecdf881c278a0"
+  },
+  {
+    "path": "server/new/game/model/local_weapon.go",
+    "bytes": 5977,
+    "sha256": "a15017b43ce872c387387c762d5e1a70f6bf0cab495547c1632294abad0dce9c"
+  },
+  {
+    "path": "server/new/game/model/local_weapon_test.go",
+    "bytes": 4572,
+    "sha256": "a96802c93e55332e920bf6ecebf3a0999aafa5b0cd96b031d9552282d90e3cb4"
+  },
+  {
+    "path": "server/new/gdconf/local_catalog.go",
+    "bytes": 6466,
+    "sha256": "6605bdb6dd9064eb803836d740cd3444bd0e07ab60ddec7dffefcf4331753eae"
+  },
+  {
+    "path": "server/new/gdconf/local_gacha.go",
+    "bytes": 1840,
+    "sha256": "56f76714a21d5a22dc90ee99e168d4612278fc3f8de675402c5d2d42799efb3c"
+  },
+  {
+    "path": "server/new/gdconf/local_gacha_test.go",
+    "bytes": 1085,
+    "sha256": "852e9f5482694403a759553a618a956058f1e004ffe028632cbb7a6ef199ac77"
+  },
+  {
+    "path": "server/new/gdconf/local_inventory.go",
+    "bytes": 1043,
+    "sha256": "ab5ff1a018d9eb096b9ea4f97031382662340ea9464a33419255f867f506e80f"
+  },
+  {
+    "path": "server/new/gdconf/local_weapon.go",
+    "bytes": 1828,
+    "sha256": "76a9b6cfef8ecc6b82b8a76a07421d366e5f5444360f877bd0de2f9e48315aaf"
+  },
+  {
+    "path": "upstream.json",
+    "bytes": 1386,
+    "sha256": "b97d9c58c9b982e241e31c875c664c6e3e8df551443f4f3c0e264af8c3b4b863"
+  }
+]

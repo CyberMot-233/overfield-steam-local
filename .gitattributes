@@ -1,0 +1,2 @@
+# Preserve exact bytes so FILE-MANIFEST.json also verifies after a Git checkout.
+* -text

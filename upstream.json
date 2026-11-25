@@ -1,0 +1,44 @@
+{
+  "launcher": {
+    "repository": "inori-dream/miaomiao-launcher",
+    "commit": "e07e15bb6d5a1b8405ad310c93b860cb0ca80bb1",
+    "modifiedFiles": [
+      "World-Control.ps1",
+      "capture_import.py",
+      "client_identity.py",
+      "service_runner.py"
+    ]
+  },
+  "server": {
+    "repository": "BanterSR/Lolo",
+    "commit": "900d84183c57e30df9a75bfb6bf5b7b9a7992363",
+    "modifiedFiles": [
+      "game/game.go",
+      "game/game_router.go",
+      "game/model/character.go",
+      "game/model/gacha.go",
+      "game/model/item.go",
+      "game/model/quest.go",
+      "game/model/scene.go",
+      "game/model/shop.go",
+      "game/model/user.go",
+      "game/player_ability.go",
+      "game/player_basic.go",
+      "game/player_bless.go",
+      "game/player_character.go",
+      "game/player_collect.go",
+      "game/player_gacha.go",
+      "game/player_scene.go",
+      "game/player_world.go",
+      "game/scene_channel.go",
+      "gdconf/data.ClientVersion.go",
+      "gdconf/excel.Ability.go",
+      "gdconf/game.config.go",
+      "sdk/dispatch.go"
+    ]
+  },
+  "goVersion": "1.26.2",
+  "verifiedGameAssemblySHA256": "4787fc3abaf911890fd6bccae6d0f85904f7c959a5d14c55f5dc56b75fe82cab",
+  "verifiedSteamResourceVersion": "2026-11-24-18-31-00",
+  "localGachaMode": "all-available (explicit offline schedule, not official event dates)"
+}
